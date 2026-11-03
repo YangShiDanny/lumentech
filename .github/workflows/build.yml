@@ -191,8 +191,8 @@ jobs:
             echo "- 触发: \`${{ github.event_name }}\`"
             echo "- 节点数: ${{ needs.discover.outputs.count }}"
             echo ""
-            echo "| 节点 | 结果 | 产物 |"
-            echo "|---|---|---|"
+            echo "| 节点 | 结果 | jar 产物 | 完整日志 |"
+            echo "|---|---|---|---|"
           } >> "$SUM"
 
           mkdir -p dist/jars dist/logs
@@ -214,19 +214,27 @@ jobs:
               # paste 的 -d 是"分隔符列表"会轮换，多个 jar 时会变成 a.jar,b.jar，故手动替换
               names="$(basename -a "${jars[@]}" | paste -sd ',' - | sed 's/,/, /g')"
               if [ "$result" = "success" ]; then
-                echo "| \`$node\` | ✅ success | $names |" >> "$SUM"
+                echo "| \`$node\` | ✅ success | $names | \`lumentech-$node\` |" >> "$SUM"
               else
-                echo "| \`$node\` | ⚠️ $result (有 jar) | $names |" >> "$SUM"
+                echo "| \`$node\` | ⚠️ $result (有 jar) | $names | \`lumentech-$node\` |" >> "$SUM"
               fi
             else
-              echo "| \`$node\` | ❌ $result | — |" >> "$SUM"
+              echo "| \`$node\` | ❌ $result | — | \`lumentech-$node\` |" >> "$SUM"
             fi
           done
 
           tar -czf all-build-results.tar.gz dist
           {
             echo ""
-            echo "**下载**：\`all-build-results\` artifact（含 \`dist/jars/<节点>/\` 与 \`dist/logs/\`）"
+            echo "## 📥 日志 / 产物下载"
+            echo ""
+            echo "- **Artifacts 区（推荐）**：[$REPO/actions/runs/${{ github.run_id }}#artifacts]($REPO/actions/runs/${{ github.run_id }}#artifacts)"
+            echo "- **汇总包**：\`all-build-results\` —— 解包后 \`dist/logs/<节点>.log\`（完整 Gradle 日志）+ \`dist/jars/<节点>/<jar>\`"
+            echo "- **单节点**：\`lumentech-<节点>\` —— 该节点完整日志 + jar + \`RESULT\`（一个 zip，点开即下载）"
+            echo "- **命令行**：\`gh run download ${{ github.run_id }} -R ${{ github.repository }}\`（全部），或加 \`-n lumentech-1.20.1-fabric\`（只下单个节点）"
+            echo ""
+            echo "> 上面每个节点的日志块只截了**末尾 120 行**（javac 报错本身就在结尾，通常够用）；"
+            echo "> 需要完整 Gradle 输出或 stacktrace，请看 \`lumentech-<节点>\` artifact。"
           } >> "$SUM"
 
       - name: 上传汇总包
