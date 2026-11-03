@@ -24,11 +24,20 @@ repositories {
 //
 // The `mc.startsWith("1.")` check keeps these dependencies off the 26.x nodes, where the
 // corresponding Java sources are excluded by Stonecutter `//? if <1.22` guards.
-val mc = project.property("minecraft") as String
+// Version-specific properties live in versions/<node>/gradle.properties and are
+// NOT inherited by the loader node project (`providers.gradleProperty` cannot see
+// them), so read that file directly. The node name (project.name) is the
+// Minecraft version and doubles as the fallback for `project.minecraft`.
+val nodeProps = java.util.Properties().apply {
+    val f = rootProject.file("versions/${project.name}/gradle.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+val mc = nodeProps.getProperty("project.minecraft", project.name)
 val isLegacyMc = mc.startsWith("1.")
 
-val energyVersion = providers.gradleProperty("energy.version").getOrElse("3.0.0")
-val geckolibVersion = providers.gradleProperty("geckolib.version").getOrElse("4.8.4")
+val energyVersion = nodeProps.getProperty("energy.version", "3.0.0")
+val geckolibVersion = nodeProps.getProperty("geckolib.version", "4.8.4")
 
 dependencies {
     if (isLegacyMc) {
