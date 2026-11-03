@@ -1,0 +1,32 @@
+{
+    "schemaVersion": 1,
+    "id": "${mod_id}",
+    "version": "${version}",
+    "name": "${mod_name}",
+    "description": "${description}",
+    "authors": [
+        "${mod_author}"
+    ],
+    "contact": {
+        "homepage": "https://github.com/YangShiDanny/lumentech",
+        "sources": "https://github.com/YangShiDanny/lumentech"
+    },
+    "license": "${license}",
+    "icon": "icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.lumentech.LumenTechFabric"
+        ]
+    },
+    "mixins": [
+        "${mod_id}.mixins.json",
+        "${mod_id}.fabric.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": "*",
+        "fabric-api": "*",
+        "minecraft": "*",
+        "java": ">=${java_version}"
+    }
+}

@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Stonecutter / multiloader generated nodes
+.stonecutter/
+node_modules/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+eclipse/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+*.local
