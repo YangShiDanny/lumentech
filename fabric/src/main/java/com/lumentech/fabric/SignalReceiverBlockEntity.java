@@ -160,6 +160,7 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         this.opened = tag.getBoolean(TAG_OPENED);
     }
     //?}
+}
 //?} else {
 /** 26.x shell: GeckoLib 5.x not ported yet; never instantiated (ENTITY_FACTORY stays null). */
 public class SignalReceiverBlockEntity extends BlockEntity {
