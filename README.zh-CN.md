@@ -26,16 +26,16 @@
 
 | Minecraft | Fabric | Forge | NeoForge |
 |-----------|:------:|:-----:|:--------:|
-| 1.20.1    |   ✅   |  —    |    —     |
+| 1.20.1    |   ✅   |  ✅   |    —     |
 | 1.21.1    |   ✅   |  —   |    ✅    |
 | 26.1.2    |   ✅   |  —   |    ✅    |
 | 26.2      |   ✅   |  —   |    ✅    |
 
-> **1.20.1 的 Forge 暂时关闭**：构建为它解析到的 Konfig 构件
->（`konfig-forge-0.10.2+1.20.1`）是空包——只有 14 个文件、**0 个 `.class`**，
-> 既编译不了也跑不起来（报 `package com.iamkaf.konfig.api.v1 does not exist`）。
-> 上一版 `0.10.1+1.20.1` 的 API 是完整的，等上游重新发布后把
-> `versions/1.20.1/gradle.properties` 里的 `forge` 加回去即可，或把依赖锁到 0.10.1。
+> **1.20.1 的 Forge 把 Konfig 锁到了 0.10.1**：构建原本会解析到的
+> `konfig-forge-0.10.2+1.20.1` 是上游打包事故——381 KB、14 个条目、**0 个
+> `.class`**，既编译不了也跑不起来。所以 `forge/build.gradle.kts` 把
+> `konfig-forge` 强制降到 `0.10.1+1.20.1`（1.06 MB、370 个 class，`api.v1`
+> 接口一致）。上游重新发布 0.10.2 forge 包之后可以删掉这段锁定。
 
 > **功能差异说明**：GeckoLib（信号接收器动画）和 Reborn Energy（发电机电量）
 > 目前只接在 1.x 旧版本线上。26.x 构建暂时是「核心版」——方块、物品、配置
@@ -72,6 +72,7 @@ lumentech/
 | 当前节点 | 说明 |
 |---|---|
 | `1.20.1-fabric` | 1.20.1 / Fabric |
+| `1.20.1-forge` | 1.20.1 / Forge |
 | `1.21.1-fabric` | 1.21.1 / Fabric |
 | `1.21.1-neoforge` | 1.21.1 / NeoForge |
 | `26.1.2-fabric` | 26.1.2 / Fabric |
@@ -79,7 +80,7 @@ lumentech/
 | `26.2-fabric` | 26.2 / Fabric |
 | `26.2-neoforge` | 26.2 / NeoForge |
 
-7 个 job 同时跑，`fail-fast: false` 保证某个节点失败不会
+8 个 job 同时跑，`fail-fast: false` 保证某个节点失败不会
 取消其它节点。每个节点只构建自己的任务
 （`:<loader>:<version>:build`），并用
 `-Pmultiloader.target.versions` / `-Pmultiloader.target.loaders` 收窄配置图，
@@ -99,7 +100,7 @@ lumentech/
 
 ```bash
 # 安装 just 命令工具（可选）：https://github.com/casey/just
-just build-all             # 一次 Gradle 调用构建全部 7 个节点
+just build-all             # 一次 Gradle 调用构建全部 8 个节点
 just build-all-parallel    # 每个节点一个进程，4 路并行（内存紧张时更稳）
 just build-node 1.21.1-neoforge   # 只构建单个节点
 just list-nodes            # 列出所有节点
@@ -110,13 +111,13 @@ just run 1.21.1 fabric     # 启动某个节点的客户端
 
 ```bash
 ./gradlew --configure-on-demand \
-  :fabric:1.20.1:build \
+  :fabric:1.20.1:build :forge:1.20.1:build \
   :fabric:1.21.1:build :neoforge:1.21.1:build \
   :fabric:26.1.2:build :neoforge:26.1.2:build \
   :fabric:26.2:build :neoforge:26.2:build
 ```
 
-如果内存吃紧（5 个节点的 Minecraft 依赖同时解析比较重），改用
+如果内存吃紧（8 个节点的 Minecraft 依赖同时解析比较重），改用
 `build-all-parallel`，或者单独跑 `build-node`。
 
 产物位于 `<loader>/versions/<mc>/build/libs/`。
