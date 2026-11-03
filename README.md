@@ -13,6 +13,12 @@ LumenTech currently registers a small tech content set (a Lumen ingot, raw Lumen
 a Lumen core and a Lumen generator block) plus a COMMON-scoped, login-synced
 configuration.
 
+On **Fabric**, the Lumen generator is energy-capable through
+[TechReborn](https://modrinth.com/mod/techreborn)'s Reborn Energy API: it generates
+energy each tick (rate from `generator.output`) and pushes it into adjacent machines
+that accept Reborn Energy, so it interops directly with TechReborn cables and
+machines. On Forge / NeoForge the generator block stays a plain decorative block.
+
 ## Version matrix
 
 | Minecraft | Fabric | Forge | NeoForge |
@@ -71,6 +77,27 @@ from `common/src/main/java/com/lumentech/config/LumenTechConfig.java`.
 | `appearance.energy_unit` | enum   | `fe`    | `fe` / `eu` / `rf` label.               |
 
 Values marked `.sync(true)` are sent to clients on login (`SyncMode.LOGIN`).
+
+## TechReborn energy integration (Fabric)
+
+The energy wiring lives entirely in the `fabric/` module so Forge / NeoForge keep
+building:
+
+- `fabric/build.gradle.kts` bundles the Reborn Energy library
+  (`teamreborn:energy`, version picked per node from `energy.version` in
+  `versions/<mc>/gradle.properties` — 3.0.0 for 1.20.1, 4.1.0 for 1.21.1).
+- `common/.../block/LumenGeneratorBlock.java` is an `EntityBlock` with a
+  loader-injected block-entity factory and ticker (null on Forge / NeoForge).
+- `fabric/.../fabric/LumenGeneratorBlockEntity.java` holds a
+  `SimpleEnergyStorage`, generates energy and pushes it to neighbours.
+- `fabric/.../fabric/FabricEnergy.java` registers the block-entity type and exposes
+  it through `EnergyStorage.SIDED`, then injects the factory/ticker into the common
+  block during `onInitialize`.
+
+Energy is **not** persisted across world reloads in this scaffold (a generator just
+regenerates it). Add `saveAdditional` / `loadAdditional` guarded by a Stonecutter
+`//? if >=1.21` / `//? if <1.21` block if you need buffered energy to survive
+restarts — the `HolderLookup.Provider` parameter only exists on 1.20.5+.
 
 ## License
 

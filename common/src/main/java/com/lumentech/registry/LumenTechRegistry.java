@@ -2,6 +2,7 @@ package com.lumentech;
 
 import com.iamkaf.amber.api.registry.v1.DeferredRegister;
 import com.iamkaf.amber.api.registry.v1.RegistrySupplier;
+import com.lumentech.block.LumenGeneratorBlock;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
@@ -28,7 +29,7 @@ public final class LumenTechRegistry {
 
     // --- Blocks ---
     public static final RegistrySupplier<Block> LUMEN_GENERATOR = BLOCKS.register("lumen_generator",
-            () -> new Block(BlockBehaviour.Properties.of().strength(3.0F, 6.0F)));
+            () -> new LumenGeneratorBlock(BlockBehaviour.Properties.of().strength(3.0F, 6.0F)));
 
     // --- Items ---
     public static final RegistrySupplier<Item> LUMEN_INGOT = ITEMS.register("lumen_ingot",
