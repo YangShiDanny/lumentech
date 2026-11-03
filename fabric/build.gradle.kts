@@ -28,16 +28,28 @@ repositories {
 // NOT inherited by the loader node project (`providers.gradleProperty` cannot see
 // them), so read that file directly. The node name (project.name) is the
 // Minecraft version and doubles as the fallback for `project.minecraft`.
-val nodeProps = java.util.Properties().apply {
-    val f = rootProject.file("versions/${project.name}/gradle.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
+// (Parsed by hand: java.util.Properties is not resolvable in this buildscript.)
+val nodeProps: Map<String, String> =
+    rootProject.file("versions/${project.name}/gradle.properties")
+        .takeIf { it.exists() }
+        ?.readLines()
+        ?.mapNotNull { raw ->
+            val line = raw.trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || "=" !in line) {
+                null
+            } else {
+                val (k, v) = line.split("=", limit = 2)
+                k.trim() to v.trim()
+            }
+        }
+        ?.toMap()
+        ?: emptyMap()
 
-val mc = nodeProps.getProperty("project.minecraft", project.name)
+val mc = nodeProps["project.minecraft"] ?: project.name
 val isLegacyMc = mc.startsWith("1.")
 
-val energyVersion = nodeProps.getProperty("energy.version", "3.0.0")
-val geckolibVersion = nodeProps.getProperty("geckolib.version", "4.8.4")
+val energyVersion = nodeProps["energy.version"] ?: "3.0.0"
+val geckolibVersion = nodeProps["geckolib.version"] ?: "4.8.4"
 
 dependencies {
     if (isLegacyMc) {
