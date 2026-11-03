@@ -7,6 +7,7 @@
 #   3. 无论成功/失败，每个节点都会保留 Jar 和单独构建日志
 #   4. 全部任务跑完后自动合并所有日志、打包全部产物为一个压缩包
 #   5. 支持手动触发，可指定需要构建的版本、加载器，留空则全量构建
+#   6. 所有矩阵全部构建成功时，自动发布 Nightly 预发布 Release
 # 产物说明：
 #   - lumentech-* : 每个节点独立的jar包
 #   - buildlog-*  : 每个节点独立gradle构建日志
@@ -15,10 +16,9 @@
 #   - 单个构建报错：该job标红，日志正常上传，合并任务依然执行
 #   - 前置步骤（checkout/setup-java等）崩溃：没有gradle日志，合并日志里会标记警告
 #   - 手动Cancel整个Run：所有后续任务直接终止，无法打包合并
+#   - 任意一个matrix失败：不会触发自动release
 # 并发：同分支新提交会取消上一轮正在运行的构建
 # ==============================================================
-
-
 name: Build
 
 # 触发规则
@@ -40,9 +40,9 @@ on:
         required: false
         default: ''
 
-# 权限：只需要读取仓库代码，不需要写权限
+# 权限：需要write用于创建release
 permissions:
-  contents: read
+  contents: write
 
 # 并发控制：同一个分支上，新构建会取消上一个还在跑的构建，避免排队浪费资源
 concurrency:
@@ -111,17 +111,24 @@ jobs:
           ${{ matrix.task }}
           2>&1 | tee build_logs/${{ matrix.node }}.log
 
+      - name: Debug find jars 调试：打印build/libs目录，确认jar位置（调试完可以删掉）
+        run: |
+          echo "==== Searching jar files ===="
+          find . -path "*/build/libs/*.jar" || echo "No jar found!"
+
       - name: Upload jars (${{ matrix.node }}) 上传该节点编译产出jar包
         # if: always() → 就算构建失败，只要有生成jar也会上传
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lumentech-${{ matrix.node }}
+          # Stonecutter标准路径在前，兼容旧路径兜底
           path: |
+            versions/${{ matrix.version }}/${{ matrix.loader }}/build/libs/*.jar
             ${{ matrix.loader }}/versions/${{ matrix.version }}/build/libs/*.jar
             ${{ matrix.loader }}/build/libs/*.jar
           if-no-files-found: warn # 没找到jar只警告，不报错终止job
-          retention-days: 14 # 产物保留14天
+          retention-days: 14
 
       - name: Upload build log (${{ matrix.node }}) 上传当前节点单独构建日志
         # if: always() → 构建失败也保留日志，用于排查报错
@@ -187,6 +194,44 @@ jobs:
       - name: Generate summary 在Actions页面顶部生成简易构建摘要
         run: |
           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_RUN_ID
+          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- All logs & jars packed into \`all-build-results\` artifact" >> $GITHUB_STEP_SUMMARY
           echo "- 👉 下载 all-build-results.tar.gz 即可拿到全部版本Jar + 合并总日志 + 各版本独立日志" >> $GITHUB_STEP_SUMMARY
+
+  # ====================== 【第四步：全部构建节点100%成功才自动发布Release】 ======================
+  # 逻辑：needs build + merge-artifacts，不加 always()
+  # 原生行为：只要任意一个build matrix job失败，本job直接跳过，不会发布
+  # 产物：把所有jar包上传到release附件；自动生成release日志
+  release:
+    needs: [build, merge-artifacts]
+    runs-on: ubuntu-latest
+    # 👉 这里没有 if:always()！！只要任意build失败，这个job就不跑
+    # 限制：只在main/master分支发布，PR不发release
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Download all jar artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lumentech-*
+          merge-multiple: true
+          path: release_jars
+
+      - name: Generate release tag name
+        id: taggen
+        run: |
+          # 快照版本：nightly-commit短hash
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="nightly-${SHORT_SHA}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "name=LumenTech Nightly Build $TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.taggen.outputs.tag }}
+          name: ${{ steps.taggen.outputs.name }}
+          generate_release_notes: true
+          prerelease: true # nightly标记为预发布，正式版改成false
+          files: release_jars/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
