@@ -54,15 +54,18 @@ val geckolibVersion = nodeProps["geckolib.version"] ?: "4.8.4"
 dependencies {
     if (isLegacyMc) {
         // GeckoLib is a normal library mod players install alongside, so it is NOT bundled.
-        modImplementation("software.bernie.geckolib:geckolib-fabric-$mc:$geckolibVersion")
+        // NOTE: use add("configuration", ...) instead of the generated Kotlin accessors
+        // (modImplementation/include) — those accessors are not reliably generated for
+        // every Stonecutter node and fail the script compilation on some of them.
+        add("modImplementation", "software.bernie.geckolib:geckolib-fabric-$mc:$geckolibVersion")
         if (geckolibVersion.startsWith("4.8")) {
             // mclib is a helper dependency for the 4.8.x (1.20.x) line only.
-            modImplementation("com.eliotlash.mclib:mclib:20")
+            add("modImplementation", "com.eliotlash.mclib:mclib:20")
         }
 
         // Reborn Energy is bundled with jar-in-jar so LumenTech keeps its energy storage
         // without TechReborn installed, while still interoping with it when present.
-        modImplementation("teamreborn:energy:$energyVersion")
-        include("teamreborn:energy:$energyVersion")
+        add("modImplementation", "teamreborn:energy:$energyVersion")
+        add("include", "teamreborn:energy:$energyVersion")
     }
 }
