@@ -17,6 +17,9 @@
     "entrypoints": {
         "main": [
             "com.lumentech.LumenTechFabric"
+        ],
+        "client": [
+            "com.lumentech.fabric.client.LumenTechFabricClient"
         ]
     },
     "mixins": [
@@ -26,6 +29,7 @@
     "depends": {
         "fabricloader": "*",
         "fabric-api": "*",
+        "geckolib": "*",
         "minecraft": "*",
         "java": ">=${java_version}"
     },

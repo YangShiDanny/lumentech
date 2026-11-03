@@ -1,0 +1,8 @@
+{
+  "itemGroup.lumentech": "LumenTech",
+  "block.lumentech.lumen_generator": "Lumen Generator",
+  "item.lumentech.lumen_ingot": "Lumen Ingot",
+  "item.lumentech.raw_lumen": "Raw Lumen",
+  "item.lumentech.lumen_core": "Lumen Core",
+  "block.lumentech.signal_receiver": "Signal Receiver"
+}
