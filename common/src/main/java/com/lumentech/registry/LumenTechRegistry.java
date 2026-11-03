@@ -44,6 +44,16 @@ public final class LumenTechRegistry {
             () -> new Item(new Item.Properties()));
     public static final RegistrySupplier<Item> LUMEN_CORE = ITEMS.register("lumen_core",
             () -> new Item(new Item.Properties()));
+    /**
+     * "Starting Blueprint" (起点蓝图) — a shard of alien photolithography.
+     *
+     * <p>This is a knowledge key, not a consumable: right-clicking it permanently
+     * unlocks a machine for that player (see the blueprint TODO), and losing the
+     * physical item does not revoke the knowledge. It is a placeholder plain
+     * {@link Item} for now; the unlock behaviour arrives in a later step.</p>
+     */
+    public static final RegistrySupplier<Item> STARTING_BLUEPRINT = ITEMS.register("starting_blueprint",
+            () -> new Item(new Item.Properties().stacksTo(1)));
     public static final RegistrySupplier<Item> LUMEN_GENERATOR_ITEM = ITEMS.register("lumen_generator",
             () -> new BlockItem(LUMEN_GENERATOR.get(), new Item.Properties()));
     public static final RegistrySupplier<Item> SIGNAL_RECEIVER_ITEM = ITEMS.register("signal_receiver",
@@ -51,8 +61,9 @@ public final class LumenTechRegistry {
 
     // --- Creative tab ---
     public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("lumentech", () -> {
-        // 1.20.1 only has the positional builder; 1.21+ dropped the row/column pair.
-        //? if <1.21 {
+        // The positional builder is all 1.20.1 - 1.21.1 have; the no-arg builder()
+        // only arrives in 1.21.2, so keep the row/column pair below that.
+        //? if <1.21.2 {
         /*CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0);
         *///?} else {
         CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder();
@@ -64,6 +75,7 @@ public final class LumenTechRegistry {
                     output.accept(LUMEN_INGOT.get());
                     output.accept(RAW_LUMEN.get());
                     output.accept(LUMEN_CORE.get());
+                    output.accept(STARTING_BLUEPRINT.get());
                     output.accept(LUMEN_GENERATOR_ITEM.get());
                     output.accept(SIGNAL_RECEIVER_ITEM.get());
                 })

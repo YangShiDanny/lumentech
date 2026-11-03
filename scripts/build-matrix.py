@@ -39,6 +39,12 @@ def version_key(version: str) -> tuple:
     return tuple(key)
 
 
+def prop(text: str, key: str, default: str) -> str:
+    """Read `key=value` out of a gradle.properties blob."""
+    match = re.search(rf"^{re.escape(key)}=(.*)$", text, re.M)
+    return match.group(1).strip() if match else default
+
+
 def collect_nodes(want_versions: set[str], want_loaders: set[str]) -> list[dict]:
     nodes: list[dict] = []
     version_dirs = sorted(
@@ -54,6 +60,12 @@ def collect_nodes(want_versions: set[str], want_loaders: set[str]) -> list[dict]
         match = re.search(r"^project\.enabled-loaders=(.*)$", text, re.M)
         enabled = [x.strip() for x in (match.group(1) if match else "").split(",") if x.strip()]
 
+        # The JDK the node has to be built on: 26.x libraries (amber/konfig/NeoForge)
+        # are compiled for JVM 25, 1.20.1-1.21.1 for 21. Multi-release jars are picked
+        # by Gradle's variant matching, which reads this attribute, so a wrong JDK here
+        # fails with "only compatible with JVM runtime version 25 or newer".
+        java = prop(text, "project.build-java", prop(text, "project.java", "21"))
+
         ordered = [l for l in LOADER_ORDER if l in enabled]
         ordered += [l for l in enabled if l not in LOADER_ORDER]
 
@@ -66,6 +78,7 @@ def collect_nodes(want_versions: set[str], want_loaders: set[str]) -> list[dict]
                     "version": version,
                     "loader": loader,
                     "task": f":{loader}:{version}:build",
+                    "java": java,
                 }
             )
     return nodes

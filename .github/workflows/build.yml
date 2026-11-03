@@ -2,8 +2,10 @@
 # LumenTech — Stonecutter 多加载器构建
 #
 # 设计要点（改动前先读这几条，都是踩过的坑）：
-# 1. Gradle 必须跑在 JDK 21 上：1.21.1 / 26.x 节点要求 21，multiloader
-#    插件本身也是 21 字节码，JVM 17 会在启动阶段就抛 UnsupportedClassVersion。
+# 1. JDK 由矩阵按节点给出（见 build-matrix.py 的 java 字段）：1.20.1 / 1.21.1 用 21，
+#    26.x 用 25 —— 26.x 的 amber/konfig/NeoForge 构件是 25 字节码，用 21 解析会报
+#    "only compatible with JVM runtime version 25 or newer"。multiloader 插件本身是
+#    21 字节码，所以任何节点都不能低于 21（JVM 17 会在启动阶段抛 UnsupportedClassVersion）。
 # 2. 单个节点失败不能拖死整条流水线：用 strategy.fail-fast=false（让其他节点继续），
 #    而不是 job 级 continue-on-error（那会把失败伪装成 success）。
 #    真正需要"继续跑完后续步骤"的是构建 step 本身，见 steps.gradle 的 continue-on-error。
@@ -73,11 +75,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          # 每个节点装自己需要的 JDK：26.x 的 amber/konfig/neoforge 构件是 25 字节码，
+          # 用 21 解析会直接报 "only compatible with JVM runtime version 25 or newer"。
+          java-version: ${{ matrix.java }}
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

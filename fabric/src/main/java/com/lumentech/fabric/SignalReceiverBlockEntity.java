@@ -131,15 +131,21 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
-    @Override
+    // getUpdateTag gained a HolderLookup.Provider parameter in 1.20.5, so 1.20.1 overrides
+    // the no-arg form while 1.21.1+ receives the registries. Splitting on the signature
+    // (not just the body) is required: on 1.21.1 a no-arg getUpdateTag() does not exist,
+    // and @Override alone fails the node.
+    //? if <1.20.5 {
+    /*@Override
     public CompoundTag getUpdateTag() {
-        // saveWithoutMetadata() takes no argument before 1.21; 1.21+ needs the registry access.
-        //? if <1.21 {
-        /*return this.saveWithoutMetadata();
-        *///?} else {
-        return this.saveWithoutMetadata(this.level.registryAccess());
-        //?}
+        return this.saveWithoutMetadata();
     }
+    *///?} else {
+    @Override
+    public CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
+        return this.saveWithoutMetadata(registries);
+    }
+    //?}
 
     //? if <1.21 {
     /*@Override
