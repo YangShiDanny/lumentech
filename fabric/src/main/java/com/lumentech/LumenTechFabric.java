@@ -1,6 +1,9 @@
 package com.lumentech;
 
 import com.lumentech.fabric.FabricSignalReceiver;
+//? if <1.22 {
+import com.lumentech.fabric.FabricEnergy;
+//?}
 import net.fabricmc.api.ModInitializer;
 
 public class LumenTechFabric implements ModInitializer {

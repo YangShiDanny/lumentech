@@ -28,10 +28,13 @@ import java.util.Objects;
  * while leaving Forge / NeoForge untouched.</p>
  */
 public final class FabricEnergy {
-    public static final DeferredRegister<BlockEntityType> BLOCK_ENTITY_TYPES =
+    // BlockEntityType<?> (not the raw type): DeferredRegister.create takes a
+    // ResourceKey<Registry<T>>, and Registries.BLOCK_ENTITY_TYPE is keyed by
+    // BlockEntityType<?>, so a raw BlockEntityType leaves T with two conflicting bounds.
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
             DeferredRegister.create(LumenTech.MOD_ID, Registries.BLOCK_ENTITY_TYPE);
 
-    public static final RegistrySupplier<BlockEntityType> GENERATOR = BLOCK_ENTITY_TYPES.register("lumen_generator",
+    public static final RegistrySupplier<BlockEntityType<?>> GENERATOR = BLOCK_ENTITY_TYPES.register("lumen_generator",
             () -> BlockEntityType.Builder.of(LumenGeneratorBlockEntity::new, LumenTechRegistry.LUMEN_GENERATOR.get())
                     .build(null));
 

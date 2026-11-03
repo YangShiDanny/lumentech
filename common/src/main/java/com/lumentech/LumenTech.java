@@ -23,6 +23,6 @@ public final class LumenTech {
         // Touch the config handle so Konfig builds config/lumentech/common.toml and
         // registers the generated config screen metadata.
         LumenTechConfig.COMMON.toString();
-        LOG.info("{} initialized (config: {})", MOD_NAME, LumenTechConfig.COMMON.getFileName());
+        LOG.info("{} initialized", MOD_NAME);
     }
 }

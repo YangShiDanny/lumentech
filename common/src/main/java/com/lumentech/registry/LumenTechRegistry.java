@@ -50,17 +50,25 @@ public final class LumenTechRegistry {
             () -> new BlockItem(SIGNAL_RECEIVER.get(), new Item.Properties()));
 
     // --- Creative tab ---
-    public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("lumentech", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.lumentech"))
-            .icon(() -> new ItemStack(LUMEN_INGOT.get()))
-            .displayItems((parameters, output) -> {
-                output.accept(LUMEN_INGOT.get());
-                output.accept(RAW_LUMEN.get());
-                output.accept(LUMEN_CORE.get());
-                output.accept(LUMEN_GENERATOR_ITEM.get());
-                output.accept(SIGNAL_RECEIVER_ITEM.get());
-            })
-            .build());
+    public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("lumentech", () -> {
+        // 1.20.1 only has the positional builder; 1.21+ dropped the row/column pair.
+        //? if <1.21 {
+        /*CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0);
+        *///?} else {
+        CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder();
+        //?}
+        return tabBuilder
+                .title(Component.translatable("itemGroup.lumentech"))
+                .icon(() -> new ItemStack(LUMEN_INGOT.get()))
+                .displayItems((parameters, output) -> {
+                    output.accept(LUMEN_INGOT.get());
+                    output.accept(RAW_LUMEN.get());
+                    output.accept(LUMEN_CORE.get());
+                    output.accept(LUMEN_GENERATOR_ITEM.get());
+                    output.accept(SIGNAL_RECEIVER_ITEM.get());
+                })
+                .build();
+    });
 
     public static void init() {
         BLOCKS.register();

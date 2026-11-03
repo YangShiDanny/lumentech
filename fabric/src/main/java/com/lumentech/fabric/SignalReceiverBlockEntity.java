@@ -1,6 +1,7 @@
 package com.lumentech.fabric;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -35,14 +36,14 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 /**
  * GeckoLib-backed block entity for the Signal Receiver.
  *
- * <p>The dish deploys the moment the block is placed: {@link #deploy()} is called by
- * {@link FabricSignalReceiver} on the server's block-place event, sets the {@code open}
- * flag and syncs it to tracking clients. The animation controller then plays the
- * {@code open} animation once and holds its last frame.</p>
+ * <p>The dish deploys the moment the block is placed: {@link #deploy()} runs on the
+ * server on the first tick after placement, sets the {@code open} flag and syncs it to
+ * tracking clients. The animation controller then plays the {@code open} animation once
+ * and holds its last frame.</p>
  *
  * <p>Because the flag is driven by the <em>server</em>, players who are already nearby
  * see the dish open, and anyone who loads the world later finds it already open &mdash;
- * the animation is not re-played on every client load.</p>
+ * the flag is persisted, so the animation is not re-played on every chunk load.</p>
  *
  * <p>The {@code rotation} animation (dish tracking a target) is intentionally left out
  * for now, per the current scope.</p>
@@ -62,6 +63,23 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         super(FabricSignalReceiver.SIGNAL_RECEIVER.get(), pos, state);
     }
 
+    /**
+     * Server tick hook, wired through {@link com.lumentech.block.SignalReceiverBlock#TICKER}.
+     *
+     * <p>Vanilla 1.20.1 has no {@code BlockEntity#onLoad} ({@code onLoad} is a 1.21+ /
+     * NeoForge hook), so the block ticker is the portable "first tick after placement"
+     * trigger. It is idempotent: {@link #deploy()} bails out as soon as the flag is set,
+     * and the flag survives world saves.</p>
+     */
+    public static void serverTick(Level level, BlockPos pos, BlockState state, BlockEntity be) {
+        if (level.isClientSide()) {
+            return;
+        }
+        if (be instanceof SignalReceiverBlockEntity self) {
+            self.deploy();
+        }
+    }
+
     /** Server-side: mark the dish as deployed and push the flag to clients. */
     public void deploy() {
         if (this.opened) {
@@ -75,28 +93,16 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         }
     }
 
-    /**
-     * Server-side one-shot: deploys the dish when the block entity first exists in the
-     * world. {@link #onLoad()} fires both on placement and when a chunk is loaded, and
-     * the {@code opened} flag is persisted, so the animation plays exactly once &mdash;
-     * right after the block is placed.
-     */
-    @Override
-    public void onLoad() {
-        super.onLoad();
-        if (this.level != null && !this.level.isClientSide()) {
-            this.deploy();
-        }
-    }
-
     /** Client-side mirror of {@link #deploy()}, driven by the data packet. */
     public void setOpenedFromServer(boolean opened) {
         this.opened = opened;
     }
 
-    @Override
+    // Deliberately no @Override and no super call: this hook's exact signature differs
+    // between 1.20.1 (ClientboundBlockEntityDataPacket) and 26.x (ValueInput), and
+    // annotating it makes the 1.20.1 node fail to compile. Without the annotation it
+    // still overrides the supertype method wherever that method exists.
     public void onDataPacket(Connection connection, ClientboundBlockEntityDataPacket packet) {
-        super.onDataPacket(connection, packet);
         if (this.level != null && this.level.isClientSide() && packet.getTag() != null) {
             this.setOpenedFromServer(packet.getTag().getBoolean(TAG_OPENED));
         }
@@ -142,8 +148,9 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         tag.putBoolean(TAG_OPENED, this.opened);
     }
 
+    // 1.20.1 declares BlockEntity#load as public; 1.20.5+ renamed it to loadAdditional.
     @Override
-    protected void load(CompoundTag tag) {
+    public void load(CompoundTag tag) {
         super.load(tag);
         this.opened = tag.getBoolean(TAG_OPENED);
     }
