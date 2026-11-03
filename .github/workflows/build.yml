@@ -81,8 +81,23 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        # 只接 Gradle 相关参数；java-version / distribution 是 setup-java 的，
-        # 传进来只会触发 "Unexpected input" 警告。
+        with:
+          # 装一个 Gradle 命令行（仅用于下一步生成 wrapper），版本与
+          # gradle/wrapper/gradle-wrapper.properties 里的 distributionUrl 保持一致。
+          gradle-version: '9.5.0'
+
+      - name: Generate Gradle wrapper
+        # gradlew / gradle-wrapper.jar 刻意不入库（.gitignore 里只有 properties 被跟踪），
+        # 所以每次 CI 都要先生成，否则 ./gradlew 直接 "No such file or directory"。
+        # 若将来把 wrapper 提交进仓库，这里会自动跳过。
+        run: |
+          if [ -x ./gradlew ]; then
+            echo "wrapper already present, skip"
+          else
+            gradle wrapper --gradle-version 9.5.0 --no-daemon
+            chmod +x ./gradlew
+            ls -l gradlew gradle/wrapper/
+          fi
 
       - name: Gradle Build ${{ matrix.node }}
         id: gradle
