@@ -150,8 +150,9 @@ jobs:
           path: all_artifacts
 
       - name: Safe merge logs, skip missing files 安全合并所有日志
-        # 容错逻辑：如果某个节点前置步骤崩了没有日志文件，写入警告，不导致合并脚本崩溃
+        # 先手动建目录兜底；匹配不到artifact时all_artifacts不会自动生成
         run: |
+          mkdir -p all_artifacts
           cd all_artifacts
           echo "=====================================" > combined.log
           echo "COMBINED MATRIX BUILD LOG" >> combined.log
@@ -186,6 +187,6 @@ jobs:
       - name: Generate summary 在Actions页面顶部生成简易构建摘要
         run: |
           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_RUN_ID
           echo "- All logs & jars packed into \`all-build-results\` artifact" >> $GITHUB_STEP_SUMMARY
           echo "- 👉 下载 all-build-results.tar.gz 即可拿到全部版本Jar + 合并总日志 + 各版本独立日志" >> $GITHUB_STEP_SUMMARY
