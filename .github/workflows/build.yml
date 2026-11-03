@@ -209,6 +209,9 @@ jobs:
     # 限制：只在main/master分支发布，PR不发release
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
+      - name: Checkout 获取git仓库，用于读取commit hash
+        uses: actions/checkout@v4
+
       - name: Download all jar artifacts
         uses: actions/download-artifact@v4
         with:
