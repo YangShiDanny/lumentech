@@ -1,11 +1,15 @@
 # ==============================================================
-# LumenTech Mod Build Workflow
-# Stonecutter Multi-loader
-# Features:
-# 1. Parallel build matrix, single fail won't block pipeline
-# 2. Collect all logs & jars into one tar artifact
-# 3. GITHUB_STEP_SUMMARY report: success/fail list + artifact guide
-# 4. Release only when ALL matrix build success
+# LumenTech — Stonecutter 多加载器构建
+#
+# 设计要点（改动前先读这几条，都是踩过的坑）：
+# 1. Gradle 必须跑在 JDK 21 上：1.21.1 / 26.x 节点要求 21，multiloader
+#    插件本身也是 21 字节码，JVM 17 会在启动阶段就抛 UnsupportedClassVersion。
+# 2. 单个节点失败不能拖死整条流水线：用 strategy.fail-fast=false（让其他节点继续），
+#    而不是 job 级 continue-on-error（那会把失败伪装成 success）。
+#    真正需要"继续跑完后续步骤"的是构建 step 本身，见 steps.gradle 的 continue-on-error。
+# 3. 所有上传步骤都必须 if: always()，否则构建一失败，日志就永远拿不到。
+# 4. shell 里不要用 $? 判断上一步结果（每个 step 是独立 shell），改用 steps.<id>.outcome。
+# 5. jar 路径不做版本/加载器顺序猜测，直接找 */build/libs/*.jar，缺失只 warn 不报错。
 # ==============================================================
 name: Build
 
@@ -16,11 +20,11 @@ on:
   workflow_dispatch:
     inputs:
       versions:
-        description: 'Comma split mc versions, empty for all'
+        description: '逗号分隔的 MC 版本，留空=全部'
         required: false
         default: ''
       loaders:
-        description: 'Comma split loaders, empty for all'
+        description: '逗号分隔的加载器(fabric/forge/neoforge)，留空=全部'
         required: false
         default: ''
 
@@ -28,182 +32,233 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # ------------------------------------------------------------
+  # 1) 扫描 versions/*/gradle.properties，展开成构建矩阵
+  # ------------------------------------------------------------
   discover:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.disco.outputs.matrix }}
+      count: ${{ steps.disco.outputs.count }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Generate matrix
-        id: disco
-        run: python3 scripts/build-matrix.py ${{ github.event.inputs.versions }} ${{ github.event.inputs.loaders }}
+      - uses: actions/checkout@v4
 
+      - name: 生成矩阵
+        id: disco
+        env:
+          # 通过环境变量传递，不是位置参数：脚本读的是 INPUT_VERSIONS / INPUT_LOADERS。
+          # 非 workflow_dispatch 事件下 inputs.* 为空，脚本会取全部节点。
+          INPUT_VERSIONS: ${{ inputs.versions }}
+          INPUT_LOADERS: ${{ inputs.loaders }}
+        run: python3 scripts/build-matrix.py
+
+      - name: 打印矩阵
+        run: echo '${{ steps.disco.outputs.matrix }}'
+
+  # ------------------------------------------------------------
+  # 2) 每个节点一个 matrix 任务
+  # ------------------------------------------------------------
   build:
     needs: discover
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
+      fail-fast: false      # 一个节点挂了，其他节点继续跑完
+      max-parallel: 8
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     name: ${{ matrix.node }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup JDK 17 (for 1.20.1 Fabric)
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: '21'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Prepare log dir
-        run: mkdir -p build_logs
+        # 只接 Gradle 相关参数；java-version / distribution 是 setup-java 的，
+        # 传进来只会触发 "Unexpected input" 警告。
 
       - name: Gradle Build ${{ matrix.node }}
+        id: gradle
+        # 关键：让这一步即使失败也不打断 job，后面的日志采集/上传才跑得到。
+        # 失败会在最后一步显式 exit 1 反映到 job 状态上。
+        continue-on-error: true
         run: |
-          echo "::group::Gradle Build ${{ matrix.node }}"
-          ./gradlew --console=plain --no-daemon \
+          set -o pipefail
+          mkdir -p build_logs
+          ./gradlew --console=plain --no-daemon --stacktrace \
             -Pmultiloader.target.versions=${{ matrix.version }} \
             -Pmultiloader.target.loaders=${{ matrix.loader }} \
-            ${{ matrix.task }} 2>&1 | tee build_logs/${{ matrix.node }}.log
-          echo "::endgroup::"
-        env:
-          GRADLE_SCAN_UPLOAD: true
+            ${{ matrix.task }} 2>&1 | tee "build_logs/${{ matrix.node }}.log"
 
-      - name: Export job status
-        id: status
+      - name: 收集 jar 与结果
+        if: always()
         run: |
-          if [[ $? -eq 0 ]]; then
-            echo "result=success" >> $GITHUB_OUTPUT
-          else
-            echo "result=failure" >> $GITHUB_OUTPUT
+          mkdir -p build_logs/jars
+          # 不猜 versions/<mc>/<loader> 还是 <loader>/versions/<mc>，两种布局都覆盖。
+          # common 是共享代码的中间产物，不是可发布的 mod jar，排除掉。
+          find . -path '*/build/libs/*.jar' \
+            -not -path './build_logs/*' -not -path './common/*' -not -path './build/*' \
+            -exec cp -v {} build_logs/jars/ \; 2>/dev/null || true
+          echo "${{ steps.gradle.outcome }}" > build_logs/RESULT
+          echo "--- 结果: ${{ steps.gradle.outcome }} ---"
+          ls -l build_logs build_logs/jars || true
+          if [ "${{ steps.gradle.outcome }}" = "failure" ]; then
+            echo "--- 日志尾部 ---"
+            tail -60 "build_logs/${{ matrix.node }}.log" || true
           fi
 
-      - name: Upload build log
+      - name: 上传产物（日志 + jar）
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: log-${{ matrix.node }}
-          path: build_logs/${{ matrix.node }}.log
+          name: lumentech-${{ matrix.node }}
+          path: build_logs/
+          if-no-files-found: warn
           retention-days: 7
 
-      - name: Upload jar
-        uses: actions/upload-artifact@v4
-        with:
-          name: jar-${{ matrix.node }}
-          path: |
-            versions/${{ matrix.version }}/${{ matrix.loader }}/build/libs/*.jar
-            ${{ matrix.loader }}/versions/${{ matrix.version }}/build/libs/*.jar
-            ${{ matrix.loader }}/build/libs/*.jar
-          retention-days: 7
+      - name: 写入 Job Summary
+        if: always()
+        run: |
+          SUM="$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.gradle.outcome }}" = "success" ]; then
+            echo "### ✅ \`${{ matrix.node }}\` 构建成功" >> "$SUM"
+          else
+            echo "### ❌ \`${{ matrix.node }}\` 构建失败" >> "$SUM"
+            echo "" >> "$SUM"
+            echo "<details><summary>日志末尾 120 行</summary>" >> "$SUM"
+            echo "" >> "$SUM"
+            echo '```' >> "$SUM"
+            tail -120 "build_logs/${{ matrix.node }}.log" 2>/dev/null >> "$SUM" || true
+            echo '```' >> "$SUM"
+            echo "" >> "$SUM"
+            echo "</details>" >> "$SUM"
+          fi
 
-  merge-artifacts:
-    needs: build
+      - name: 让失败的节点真正标红
+        if: steps.gradle.outcome == 'failure'
+        run: |
+          echo "::error title=${{ matrix.node }}::Gradle 构建失败，详见 ${{ matrix.node }} 日志 artifact"
+          exit 1
+
+  # ------------------------------------------------------------
+  # 3) 汇总所有节点的日志与 jar，生成总报告
+  #    不看 build 的结果，永远执行（否则一失败就没报告了）
+  # ------------------------------------------------------------
+  summary:
+    needs: [discover, build]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Download all logs and jars
+      - name: 下载全部节点产物
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          pattern: lumentech-*
+          path: artifacts
 
-      - name: Pack all to tar.gz
+      - name: 合并 + 生成报告
         run: |
-          tar -czf all-build-results.tar.gz ./artifacts
+          set -uo pipefail
+          SUM="$GITHUB_STEP_SUMMARY"
+          REPO="${{ github.server_url }}/${{ github.repository }}"
 
-      - name: Upload combined package
+          {
+            echo "# 📋 LumenTech 构建报告"
+            echo ""
+            echo "- 运行: [${{ github.run_id }}]($REPO/actions/runs/${{ github.run_id }})"
+            echo "- 提交: \`${{ github.sha }}\`"
+            echo "- 触发: \`${{ github.event_name }}\`"
+            echo "- 节点数: ${{ needs.discover.outputs.count }}"
+            echo ""
+            echo "| 节点 | 结果 | 产物 |"
+            echo "|---|---|---|"
+          } >> "$SUM"
+
+          mkdir -p dist/jars dist/logs
+          shopt -s nullglob
+
+          for d in artifacts/*/; do
+            node="$(basename "$d")"
+            node="${node#lumentech-}"
+            result="$(cat "$d/RESULT" 2>/dev/null || echo unknown)"
+
+            for log in "$d"*.log; do
+              cp "$log" "dist/logs/$node.log"
+            done
+
+            jars=("$d"jars/*.jar)
+            if [ ${#jars[@]} -gt 0 ]; then
+              mkdir -p "dist/jars/$node"
+              cp "${jars[@]}" "dist/jars/$node/"
+              # paste 的 -d 是"分隔符列表"会轮换，多个 jar 时会变成 a.jar,b.jar，故手动替换
+              names="$(basename -a "${jars[@]}" | paste -sd ',' - | sed 's/,/, /g')"
+              if [ "$result" = "success" ]; then
+                echo "| \`$node\` | ✅ success | $names |" >> "$SUM"
+              else
+                echo "| \`$node\` | ⚠️ $result (有 jar) | $names |" >> "$SUM"
+              fi
+            else
+              echo "| \`$node\` | ❌ $result | — |" >> "$SUM"
+            fi
+          done
+
+          tar -czf all-build-results.tar.gz dist
+          {
+            echo ""
+            echo "**下载**：\`all-build-results\` artifact（含 \`dist/jars/<节点>/\` 与 \`dist/logs/\`）"
+          } >> "$SUM"
+
+      - name: 上传汇总包
         uses: actions/upload-artifact@v4
         with:
           name: all-build-results
           path: all-build-results.tar.gz
           retention-days: 7
 
-      - name: Step summary
-        run: |
-          echo "# 📦 Merge Artifact Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Combined artifact: \`all-build-results.tar.gz\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Contains: all independent logs + jars" >> $GITHUB_STEP_SUMMARY
-
+  # ------------------------------------------------------------
+  # 4) 全绿才发 nightly release（PR / 失败都会被跳过）
+  # ------------------------------------------------------------
   release:
-    needs: [build, merge-artifacts]
+    needs: [build, summary]
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      && needs.build.result == 'success'
     runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      && !contains(needs.build.results, 'failure')
     steps:
-      - name: Checkout 获取git仓库，用于读取commit hash
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Download all jar artifacts
+      - name: 下载汇总包
         uses: actions/download-artifact@v4
         with:
-          pattern: jar-*    # ✅ 修正：匹配 jar-xxx 而不是 lumentech-*
-          merge-multiple: true
-          path: release_jars
+          name: all-build-results
 
-      # 【关键调试步骤】打印目录结构，看文件在哪，上线稳定后可以删掉
-      - name: List downloaded jars
-        run: ls -R release_jars
+      - name: 解包
+        run: |
+          tar -xzf all-build-results.tar.gz
+          ls -R dist
 
-      - name: Generate release tag name
+      - name: 生成 tag
         id: taggen
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          TAG="nightly-${SHORT_SHA}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "name=LumenTech Nightly Build $TAG" >> $GITHUB_OUTPUT
+          echo "tag=nightly-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "name=LumenTech Nightly ${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.taggen.outputs.tag }}
           name: ${{ steps.taggen.outputs.name }}
           generate_release_notes: true
           prerelease: true
-          files: release_jars/**/*.jar # ✅ ** 递归所有子文件夹找jar
+          fail_on_unmatched_files: false
+          files: dist/jars/**/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-  report:
-    needs: [merge-artifacts, release]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Build full report summary
-        run: |
-          echo "# 📋 LumenTech Build Report" >> $GITHUB_STEP_SUMMARY
-          echo "Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "Commit SHA: [${{ github.sha }}](${{ github.event.commit.url }})" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## 📄 Log Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Individual log: \`log-<node>\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Full pack: \`all-build-results.tar.gz\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## 🫙 Jar Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Individual jar: \`jar-<node>\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Full pack: \`all-build-results.tar.gz\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## 🚀 Release Status" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ needs.release.result }}" == "success" ]]; then
-            echo "- ✅ Nightly Release published" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ⏭️ Nightly Release skipped (has failed build)" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Go to the bottom of this page, Artifacts section to download files." >> $GITHUB_STEP_SUMMARY

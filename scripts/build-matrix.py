@@ -4,10 +4,16 @@
 Each enabled loader of each Minecraft version becomes one node, described by the
 Gradle task path :<loader>:<version>:build.
 
-Environment:
-  INPUT_VERSIONS  optional comma-separated Minecraft versions to keep
-  INPUT_LOADERS   optional comma-separated loaders to keep (fabric/forge/neoforge)
-  GITHUB_OUTPUT   when set, writes `matrix=<json>` there; otherwise prints to stdout
+Usage:
+  python3 scripts/build-matrix.py [versions] [loaders]
+
+Filters come from (in order of precedence):
+  1. positional arguments:  build-matrix.py 1.20.1,1.21.1 fabric
+  2. INPUT_VERSIONS / INPUT_LOADERS environment variables (used by the workflow)
+Both are optional - no filter means "every node".
+
+GITHUB_OUTPUT  when set, writes `matrix=<json>` and `count=<n>` there;
+               otherwise prints `matrix=<json>` to stdout.
 """
 from __future__ import annotations
 
@@ -66,8 +72,15 @@ def collect_nodes(want_versions: set[str], want_loaders: set[str]) -> list[dict]
 
 
 def main() -> int:
-    nodes = collect_nodes(csv_set(os.environ.get("INPUT_VERSIONS")),
-                          csv_set(os.environ.get("INPUT_LOADERS")))
+    # Positional args win; the workflow passes filters through env instead so that
+    # empty workflow_dispatch inputs cannot turn into stray empty arguments.
+    arg_versions = sys.argv[1] if len(sys.argv) > 1 else None
+    arg_loaders = sys.argv[2] if len(sys.argv) > 2 else None
+
+    nodes = collect_nodes(
+        csv_set(arg_versions if arg_versions is not None else os.environ.get("INPUT_VERSIONS")),
+        csv_set(arg_loaders if arg_loaders is not None else os.environ.get("INPUT_LOADERS")),
+    )
     if not nodes:
         print("no nodes matched the requested filters", file=sys.stderr)
         return 1
@@ -77,8 +90,10 @@ def main() -> int:
     if out_path:
         with open(out_path, "a", encoding="utf-8") as handle:
             handle.write(f"matrix={payload}\n")
+            handle.write(f"count={len(nodes)}\n")
     else:
         print(f"matrix={payload}")
+        print(f"count={len(nodes)}")
 
     print(f"resolved {len(nodes)} node(s): {', '.join(n['node'] for n in nodes)}", file=sys.stderr)
     return 0
