@@ -1,5 +1,6 @@
 # LumenTech
 
+### 需要中文 README 请到 [README.zh-CN.md](README.zh-CN.md)
 A cross-version, cross-loader tech mod for Minecraft, built with the
 [iamkaf](https://github.com/iamkaf) `multiloader` + Stonecutter toolchain.
 
@@ -48,21 +49,60 @@ lumentech/
 
 ## Building
 
-This project is configured to build on GitHub Actions (see
-`.github/workflows/build.yml`) — push to `main` and the workflow builds the
-active node (`1.21.1`) across Fabric, Forge and NeoForge and uploads the jars.
+### All nodes at once (GitHub Actions)
 
-To build locally you need **JDK 21** and **Git**. A Gradle 9.5 wrapper is
-generated automatically on first run if it is missing:
+`.github/workflows/build.yml` expands the `enabled-loaders` declared in
+`versions/*/gradle.properties` into a matrix and runs **one parallel job per
+version + loader**:
+
+| Node | |
+|---|---|
+| `1.20.1-fabric` | 1.20.1 / Fabric |
+| `1.20.1-forge` | 1.20.1 / Forge |
+| `1.21.1-fabric` | 1.21.1 / Fabric |
+| `1.21.1-forge` | 1.21.1 / Forge |
+| `1.21.1-neoforge` | 1.21.1 / NeoForge |
+
+All five run concurrently (`max-parallel: 5`) with `fail-fast: false`, so one
+broken node does not cancel the rest. Each job builds only its own task
+(`:<loader>:<version>:build`) and narrows the Stonecutter graph with
+`-Pmultiloader.target.versions` / `-Pmultiloader.target.loaders`.
+
+The matrix is produced by `scripts/build-matrix.py`. When triggering the
+workflow manually you can fill in `versions` / `loaders` to build a subset
+(for example only `1.21.1`, or only `fabric`).
+
+Jars are uploaded per node as `lumentech-<version>-<loader>`.
+
+> Adding a version is just a new `versions/<mc>/gradle.properties` — CI picks the
+> new node up automatically, no workflow edit needed.
+
+### Building locally
+
+You need **JDK 21** and **Git**. A Gradle 9.5 wrapper is generated automatically
+on first run if it is missing:
 
 ```bash
 # install the just command runner (optional): https://github.com/casey/just
-just build                 # builds the active node (1.21.1) across loaders
-just list-nodes            # print every enabled Minecraft/loader node
-just run 1.21.1 forge      # run the Forge client for MC 1.21.1
+just build-all             # build all 5 nodes in one Gradle invocation
+just build-all-parallel    # one process per node, 4 in parallel (kinder on RAM)
+just build-node 1.21.1-forge   # build a single node
+just list-nodes            # print every Minecraft/loader node
+just run 1.21.1 fabric     # run the client for one node
 ```
 
-Built jars land in `<loader>/build/libs/` (e.g. `fabric/build/libs/`).
+`just build-all` expands to a single command listing every node's task:
+
+```bash
+./gradlew --configure-on-demand \
+  :fabric:1.20.1:build :forge:1.20.1:build \
+  :fabric:1.21.1:build :forge:1.21.1:build :neoforge:1.21.1:build
+```
+
+If memory is tight (resolving the Minecraft dependencies for all nodes at once is
+heavy), use `build-all-parallel` or build nodes individually.
+
+Built jars land in `<loader>/versions/<mc>/build/libs/`.
 
 ## Configuration
 

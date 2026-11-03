@@ -28,5 +28,12 @@ Thumbs.db
 
 # Workbuddy AI
 .workbuddy/
-# 清理工具产生的垃圾目录（如 :~/.Trash-0）
+
+# trash（如 :~/.Trash-0）
 .Trash-*/
+
+# .minecraft
+.minecraft/
+# Python
+__pycache__/
+*.pyc

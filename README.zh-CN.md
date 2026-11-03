@@ -1,4 +1,4 @@
-# LumenTech（流明科技）
+# LumenTech（光科技）
 
 一个跨版本、跨加载器的 Minecraft 科技模组，基于
 [iamkaf](https://github.com/iamkaf) 的 `multiloader` + Stonecutter 工具链构建。
@@ -51,20 +51,58 @@ lumentech/
 
 ## 构建
 
-本仓库已配好 GitHub Actions（见 `.github/workflows/build.yml`）：推送到 `main`
-后会自动构建当前活跃节点（`1.21.1`）的 Fabric / Forge / NeoForge 三个加载器，
-并把 jar 作为构件上传。
+### 一次构建全部节点（GitHub Actions）
 
-本地构建需要 **JDK 21** 和 **Git**。首次运行若缺少 Gradle 9.5 wrapper，会自动生成：
+`.github/workflows/build.yml` 会自动把 `versions/*/gradle.properties` 里声明的
+`enabled-loaders` 展开成矩阵，**每个「版本 + 加载器」一个并行 job**：
+
+| 当前节点 | 说明 |
+|---|---|
+| `1.20.1-fabric` | 1.20.1 / Fabric |
+| `1.20.1-forge` | 1.20.1 / Forge |
+| `1.21.1-fabric` | 1.21.1 / Fabric |
+| `1.21.1-forge` | 1.21.1 / Forge |
+| `1.21.1-neoforge` | 1.21.1 / NeoForge |
+
+5 个 job 用 `max-parallel: 5` 同时跑，`fail-fast: false` 保证某个节点失败不会
+取消其它节点。每个节点只构建自己的任务
+（`:<loader>:<version>:build`），并用
+`-Pmultiloader.target.versions` / `-Pmultiloader.target.loaders` 收窄配置图，
+避免每次都配置全部版本。
+
+矩阵由 `scripts/build-matrix.py` 生成。手动触发 workflow 时可以填
+`versions` / `loaders` 来只构建一部分，例如只跑 `1.21.1`，或只跑 `fabric`。
+
+产物按节点分别上传，artifact 名为 `lumentech-<version>-<loader>`。
+
+> 加新版本只需新建 `versions/<mc>/gradle.properties`，CI 会自动把新节点加进矩阵，
+> 不需要改 workflow。
+
+### 本地构建
+
+本地构建需要 **JDK 21** 和 **Git**。首次运行若缺少 Gradle 9.5 wrapper，会自动生成。
 
 ```bash
 # 安装 just 命令工具（可选）：https://github.com/casey/just
-just build                 # 构建活跃节点（1.21.1）的所有加载器
-just list-nodes            # 列出所有启用的 MC/加载器节点
-just run 1.21.1 forge      # 启动 1.21.1 的 Forge 客户端
+just build-all             # 一次 Gradle 调用构建全部 5 个节点
+just build-all-parallel    # 每个节点一个进程，4 路并行（内存紧张时更稳）
+just build-node 1.21.1-forge   # 只构建单个节点
+just list-nodes            # 列出所有节点
+just run 1.21.1 fabric     # 启动某个节点的客户端
 ```
 
-产物位于 `<loader>/build/libs/`（例如 `fabric/build/libs/`）。
+`just build-all` 实际执行的是把所有节点任务拼成一条命令：
+
+```bash
+./gradlew --configure-on-demand \
+  :fabric:1.20.1:build :forge:1.20.1:build \
+  :fabric:1.21.1:build :forge:1.21.1:build :neoforge:1.21.1:build
+```
+
+如果内存吃紧（5 个节点的 Minecraft 依赖同时解析比较重），改用
+`build-all-parallel`，或者单独跑 `build-node`。
+
+产物位于 `<loader>/versions/<mc>/build/libs/`。
 
 ## 配置
 

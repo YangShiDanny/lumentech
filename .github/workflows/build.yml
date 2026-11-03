@@ -3,14 +3,53 @@ name: Build
 on:
   push:
     branches: [main, master]
+  pull_request:
   workflow_dispatch:
+    inputs:
+      versions:
+        description: 'Comma-separated MC versions to build (blank = all)'
+        required: false
+        default: ''
+      loaders:
+        description: 'Comma-separated loaders to build (blank = all)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  # Expand versions/*/gradle.properties into one matrix entry per enabled loader,
+  # e.g. 1.20.1-fabric, 1.20.1-forge, 1.21.1-fabric, 1.21.1-forge, 1.21.1-neoforge.
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve build matrix
+        id: matrix
+        env:
+          INPUT_VERSIONS: ${{ github.event.inputs.versions }}
+          INPUT_LOADERS: ${{ github.event.inputs.loaders }}
+        run: python3 scripts/build-matrix.py
+
+  # One parallel job per node. fail-fast: false so a broken 1.20.1 node does not
+  # cancel the 1.21.1 nodes.
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    name: ${{ matrix.node }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,19 +64,28 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.5.0
+          cache-read-only: false
 
-      # Generate the wrapper jar (not committed; network-restricted locally).
+      # The wrapper jar is intentionally not committed; regenerate it here.
       - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 9.5.0
+        run: gradle wrapper --gradle-version 9.5.0 --no-daemon
 
-      # Builds the active node (1.21.1) across its enabled loaders.
-      - name: Build
-        run: ./gradlew build
+      # Narrow the Stonecutter graph to this node so unrelated versions are not
+      # configured, then build exactly one :<loader>:<version>:build task.
+      - name: Build ${{ matrix.node }}
+        run: >
+          ./gradlew --console=plain --no-daemon --configure-on-demand
+          -Pmultiloader.target.versions=${{ matrix.version }}
+          -Pmultiloader.target.loaders=${{ matrix.loader }}
+          ${{ matrix.task }}
 
-      - name: Upload build artifacts
+      - name: Upload jars (${{ matrix.node }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lumentech-jars
-          path: '**/build/libs/*.jar'
+          name: lumentech-${{ matrix.node }}
+          path: |
+            ${{ matrix.loader }}/versions/${{ matrix.version }}/build/libs/*.jar
+            ${{ matrix.loader }}/build/libs/*.jar
           if-no-files-found: warn
+          retention-days: 14
