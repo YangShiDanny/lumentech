@@ -33,7 +33,7 @@ list-projects:
 build:
     ./gradlew build --console=plain
 
-# Build ONE node, e.g. `just build-node 1.20.1-forge`.
+# Build ONE node, e.g. `just build-node 1.21.1-neoforge`.
 build-node node:
     @if ! just list-nodes | grep -Fxq "{{node}}"; then echo "Unknown node: {{node}}"; exit 1; fi
     @version="{{node}}"; loader="${version##*-}"; version="${version%-*}"; \

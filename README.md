@@ -24,10 +24,16 @@ machines. On Forge / NeoForge the generator block stays a plain decorative block
 
 | Minecraft | Fabric | Forge | NeoForge |
 |-----------|:------:|:-----:|:--------:|
-| 1.20.1    |   ✅   |  ✅  |    —     |
-| 1.21.1    |   ✅   |  —   |    ✅    |
-| 26.1.2    |   ✅   |  —   |    ✅    |
-| 26.2      |   ✅   |  —   |    ✅    |
+| 1.20.1    |   ✅   |  —    |    —     |
+| 1.21.1    |   ✅   |  —    |    ✅    |
+| 26.1.2    |   ✅   |  —    |    ✅    |
+| 26.2      |   ✅   |  —    |    ✅    |
+
+> **Forge 1.20.1 is temporarily disabled.** The Konfig artifact the build resolves
+> for it (`konfig-forge-0.10.2+1.20.1`) is packaged empty — 14 files, zero `.class`
+> entries — so it cannot be compiled or run against. `0.10.1+1.20.1` does ship the
+> API; re-add `forge` to `versions/1.20.1/gradle.properties` once upstream
+> republishes, or pin the dependency to 0.10.1.
 
 > **Feature parity note:** GeckoLib (Signal Receiver animation) and Reborn Energy
 > (generator power) are wired on the legacy 1.x lines only. The 26.x builds are
@@ -66,7 +72,6 @@ version + loader**:
 | Node | |
 |---|---|
 | `1.20.1-fabric` | 1.20.1 / Fabric |
-| `1.20.1-forge` | 1.20.1 / Forge |
 | `1.21.1-fabric` | 1.21.1 / Fabric |
 | `1.21.1-neoforge` | 1.21.1 / NeoForge |
 | `26.1.2-fabric` | 26.1.2 / Fabric |
@@ -74,7 +79,7 @@ version + loader**:
 | `26.2-fabric` | 26.2 / Fabric |
 | `26.2-neoforge` | 26.2 / NeoForge |
 
-All eight run concurrently with `fail-fast: false`, so one
+All seven run concurrently with `fail-fast: false`, so one
 broken node does not cancel the rest. Each job builds only its own task
 (`:<loader>:<version>:build`) and narrows the Stonecutter graph with
 `-Pmultiloader.target.versions` / `-Pmultiloader.target.loaders`.
@@ -95,9 +100,9 @@ on first run if it is missing:
 
 ```bash
 # install the just command runner (optional): https://github.com/casey/just
-just build-all             # build all 8 nodes in one Gradle invocation
+just build-all             # build all 7 nodes in one Gradle invocation
 just build-all-parallel    # one process per node, 4 in parallel (kinder on RAM)
-just build-node 1.21.1-forge   # build a single node
+just build-node 1.21.1-neoforge   # build a single node
 just list-nodes            # print every Minecraft/loader node
 just run 1.21.1 fabric     # run the client for one node
 ```
@@ -106,7 +111,7 @@ just run 1.21.1 fabric     # run the client for one node
 
 ```bash
 ./gradlew --configure-on-demand \
-  :fabric:1.20.1:build :forge:1.20.1:build \
+  :fabric:1.20.1:build \
   :fabric:1.21.1:build :neoforge:1.21.1:build \
   :fabric:26.1.2:build :neoforge:26.1.2:build \
   :fabric:26.2:build :neoforge:26.2:build

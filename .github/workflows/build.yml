@@ -117,9 +117,11 @@ jobs:
         run: |
           mkdir -p build_logs/jars
           # 不猜 versions/<mc>/<loader> 还是 <loader>/versions/<mc>，两种布局都覆盖。
-          # common 是共享代码的中间产物，不是可发布的 mod jar，排除掉。
+          # common 是共享代码的中间产物，不是可发布的 mod jar；-sources/-javadoc 也不该
+          # 混进 release 附件（之前 1.20.1-fabric 的产物里就带着它们）。
           find . -path '*/build/libs/*.jar' \
             -not -path './build_logs/*' -not -path './common/*' -not -path './build/*' \
+            -not -name '*-sources.jar' -not -name '*-javadoc.jar' \
             -exec cp -v {} build_logs/jars/ \; 2>/dev/null || true
           echo "${{ steps.gradle.outcome }}" > build_logs/RESULT
           echo "--- 结果: ${{ steps.gradle.outcome }} ---"
@@ -142,19 +144,61 @@ jobs:
         if: always()
         run: |
           SUM="$GITHUB_STEP_SUMMARY"
+          LOG="build_logs/${{ matrix.node }}.log"
+
           if [ "${{ steps.gradle.outcome }}" = "success" ]; then
             echo "### ✅ \`${{ matrix.node }}\` 构建成功" >> "$SUM"
+            exit 0
+          fi
+
+          echo "### ❌ \`${{ matrix.node }}\` 构建失败" >> "$SUM"
+          echo "" >> "$SUM"
+
+          # 构建在 ./gradlew 写出日志之前就挂了（wrapper / JDK 阶段）。
+          if [ ! -f "$LOG" ]; then
+            echo '```' >> "$SUM"
+            echo "日志文件不存在：构建在 Gradle 启动前就失败了，多半是 wrapper 生成或 JDK 版本问题。" >> "$SUM"
+            echo '```' >> "$SUM"
+            exit 0
+          fi
+
+          # 不要用 tail：--stacktrace 会把真正的报错挤出日志尾部（一个 stack 就上百行），
+          # 之前 26.x 的日志全被 "at org.gradle..." 吃掉就是这么来的。
+          # 这里按语义抽取两段：Gradle 的 What-went-wrong 段 + 真正的诊断行。
+          WW="$(awk '/^\* What went wrong:/{f=1} f&&/^\* Try:/{exit} f{print}' "$LOG" | head -40)"
+          ERRS="$(grep -nE 'error:|Could not (resolve|find|GET|download)|No matching version|Unresolved reference|^e: |Caused by:' "$LOG" | head -40)"
+
+          echo "<details open><summary>原因</summary>" >> "$SUM"
+          echo "" >> "$SUM"
+          echo '```' >> "$SUM"
+          if [ -n "$WW" ]; then
+            echo "$WW" >> "$SUM"
           else
-            echo "### ❌ \`${{ matrix.node }}\` 构建失败" >> "$SUM"
-            echo "" >> "$SUM"
-            echo "<details><summary>日志末尾 120 行</summary>" >> "$SUM"
+            echo "（日志里没有 What went wrong 段，看下面的错误行）" >> "$SUM"
+          fi
+          echo '```' >> "$SUM"
+          echo "" >> "$SUM"
+          echo "</details>" >> "$SUM"
+          echo "" >> "$SUM"
+
+          if [ -n "$ERRS" ]; then
+            echo "<details open><summary>诊断行（前 40 条）</summary>" >> "$SUM"
             echo "" >> "$SUM"
             echo '```' >> "$SUM"
-            tail -120 "build_logs/${{ matrix.node }}.log" 2>/dev/null >> "$SUM" || true
+            echo "$ERRS" >> "$SUM"
             echo '```' >> "$SUM"
             echo "" >> "$SUM"
             echo "</details>" >> "$SUM"
+            echo "" >> "$SUM"
           fi
+
+          echo "<details><summary>日志末尾 60 行</summary>" >> "$SUM"
+          echo "" >> "$SUM"
+          echo '```' >> "$SUM"
+          tail -60 "$LOG" >> "$SUM" || true
+          echo '```' >> "$SUM"
+          echo "" >> "$SUM"
+          echo "</details>" >> "$SUM"
 
       - name: 让失败的节点真正标红
         if: steps.gradle.outcome == 'failure'
