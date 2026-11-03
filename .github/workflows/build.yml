@@ -63,7 +63,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 9.5
+          java-version: '17'
+          distribution: 'temurin'
 
       - name: Prepare log dir
         run: mkdir -p build_logs
