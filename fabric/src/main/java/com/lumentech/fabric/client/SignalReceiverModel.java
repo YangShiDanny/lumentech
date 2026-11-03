@@ -1,6 +1,9 @@
 package com.lumentech.fabric.client;
 
+// GeckoLib is only wired on legacy MC (1.x) - compiled out on 26.x.
+//? if <1.22 {
 import com.lumentech.LumenTech;
+import com.lumentech.fabric.FabricSignalReceiver;
 import com.lumentech.fabric.SignalReceiverBlockEntity;
 import net.minecraft.resources.ResourceLocation;
 import software.bernie.geckolib.model.GeoModel;
@@ -48,3 +51,4 @@ public class SignalReceiverModel extends GeoModel<SignalReceiverBlockEntity> {
         return ANIMATION;
     }
 }
+//?}

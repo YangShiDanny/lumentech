@@ -1,11 +1,18 @@
 package com.lumentech.fabric;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+
+// GeckoLib 4.x (MC 1.20.1 / 1.21.1) vs 5.x (MC 26.x) are incompatible APIs, and
+// GeckoLib is not wired on 26.x yet, so the animated block entity is compiled out
+// there and replaced with a plain shell. The common block leaves ENTITY_FACTORY
+// null on 26.x, so this shell is never instantiated - it only keeps the
+// FabricSignalReceiver registration compiling.
+//? if <1.22 {
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoBlockEntity;
 
@@ -153,4 +160,11 @@ public class SignalReceiverBlockEntity extends BlockEntity implements GeoBlockEn
         this.opened = tag.getBoolean(TAG_OPENED);
     }
     //?}
+//?} else {
+/** 26.x shell: GeckoLib 5.x not ported yet; never instantiated (ENTITY_FACTORY stays null). */
+public class SignalReceiverBlockEntity extends BlockEntity {
+    public SignalReceiverBlockEntity(BlockPos pos, BlockState state) {
+        super(FabricSignalReceiver.SIGNAL_RECEIVER.get(), pos, state);
+    }
 }
+//?}

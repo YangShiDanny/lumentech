@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 8
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     name: ${{ matrix.node }}
     steps:

@@ -29,11 +29,16 @@
     "depends": {
         "fabricloader": "*",
         "fabric-api": "*",
+        // GeckoLib is only wired on legacy MC (1.x); removed from 26.x builds by stonecutter.
+        //? if <1.22 {
         "geckolib": "*",
+        //?}
         "minecraft": "*",
         "java": ">=${java_version}"
     },
     "recommends": {
+        //? if <1.22 {
         "techreborn": "*"
+        //?}
     }
 }

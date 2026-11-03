@@ -25,7 +25,15 @@ machines. On Forge / NeoForge the generator block stays a plain decorative block
 | Minecraft | Fabric | Forge | NeoForge |
 |-----------|:------:|:-----:|:--------:|
 | 1.20.1    |   ✅   |  ✅  |    —     |
-| 1.21.1    |   ✅   |  ✅  |    ✅    |
+| 1.21.1    |   ✅   |  —   |    ✅    |
+| 26.1.2    |   ✅   |  —   |    ✅    |
+| 26.2      |   ✅   |  —   |    ✅    |
+
+> **Feature parity note:** GeckoLib (Signal Receiver animation) and Reborn Energy
+> (generator power) are wired on the legacy 1.x lines only. The 26.x builds are
+> core-only for now — blocks, items and config register, but the Signal Receiver
+> has no block entity and the generator produces no power. GeckoLib 5.x for 26.x
+> is a different API (`com.geckolib`) and needs a separate port.
 
 The enabled loaders per line are declared in `versions/<mc>/gradle.properties`
 (`project.enabled-loaders`). Add a new line by dropping in another
@@ -60,10 +68,13 @@ version + loader**:
 | `1.20.1-fabric` | 1.20.1 / Fabric |
 | `1.20.1-forge` | 1.20.1 / Forge |
 | `1.21.1-fabric` | 1.21.1 / Fabric |
-| `1.21.1-forge` | 1.21.1 / Forge |
 | `1.21.1-neoforge` | 1.21.1 / NeoForge |
+| `26.1.2-fabric` | 26.1.2 / Fabric |
+| `26.1.2-neoforge` | 26.1.2 / NeoForge |
+| `26.2-fabric` | 26.2 / Fabric |
+| `26.2-neoforge` | 26.2 / NeoForge |
 
-All five run concurrently (`max-parallel: 5`) with `fail-fast: false`, so one
+All eight run concurrently with `fail-fast: false`, so one
 broken node does not cancel the rest. Each job builds only its own task
 (`:<loader>:<version>:build`) and narrows the Stonecutter graph with
 `-Pmultiloader.target.versions` / `-Pmultiloader.target.loaders`.
@@ -84,7 +95,7 @@ on first run if it is missing:
 
 ```bash
 # install the just command runner (optional): https://github.com/casey/just
-just build-all             # build all 5 nodes in one Gradle invocation
+just build-all             # build all 8 nodes in one Gradle invocation
 just build-all-parallel    # one process per node, 4 in parallel (kinder on RAM)
 just build-node 1.21.1-forge   # build a single node
 just list-nodes            # print every Minecraft/loader node
@@ -96,13 +107,13 @@ just run 1.21.1 fabric     # run the client for one node
 ```bash
 ./gradlew --configure-on-demand \
   :fabric:1.20.1:build :forge:1.20.1:build \
-  :fabric:1.21.1:build :forge:1.21.1:build :neoforge:1.21.1:build
+  :fabric:1.21.1:build :neoforge:1.21.1:build \
+  :fabric:26.1.2:build :neoforge:26.1.2:build \
+  :fabric:26.2:build :neoforge:26.2:build
 ```
 
 If memory is tight (resolving the Minecraft dependencies for all nodes at once is
-heavy), use `build-all-parallel` or build nodes individually.
-
-Built jars land in `<loader>/versions/<mc>/build/libs/`.
+heavy), use `build-all-parallel` or build nodes individually.Built jars land in `<loader>/versions/<mc>/build/libs/`.
 
 ## Configuration
 

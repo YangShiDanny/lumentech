@@ -1,5 +1,7 @@
 package com.lumentech.fabric;
 
+// Reborn Energy is only wired on legacy MC (1.x) - compiled out on 26.x.
+//? if <1.22 {
 import com.lumentech.config.LumenTechConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -74,3 +76,4 @@ public class LumenGeneratorBlockEntity extends BlockEntity {
         }
     }
 }
+//?}

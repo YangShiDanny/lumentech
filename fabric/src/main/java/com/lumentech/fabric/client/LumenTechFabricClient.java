@@ -1,5 +1,9 @@
 package com.lumentech.fabric.client;
 
+// GeckoLib is only wired on legacy MC (1.x) - 26.x keeps an empty client entrypoint
+// shell so fabric.mod.json still resolves the entrypoint class.
+//? if <1.22 {
+import com.lumentech.LumenTech;
 import com.lumentech.fabric.FabricSignalReceiver;
 import com.lumentech.fabric.SignalReceiverBlockEntity;
 import net.fabricmc.api.ClientModInitializer;
@@ -20,3 +24,13 @@ public class LumenTechFabricClient implements ClientModInitializer {
                 context -> new GeoBlockRenderer<SignalReceiverBlockEntity>(new SignalReceiverModel()));
     }
 }
+//?} else {
+import net.fabricmc.api.ClientModInitializer;
+
+/** 26.x shell: no GeckoLib renderer yet. */
+public class LumenTechFabricClient implements ClientModInitializer {
+    @Override
+    public void onInitializeClient() {
+    }
+}
+//?}

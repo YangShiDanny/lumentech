@@ -30,6 +30,9 @@ public final class FabricSignalReceiver {
         BLOCK_ENTITY_TYPES.register();
 
         // Let the shared block create our GeckoLib-backed block entity.
+        // (Only on legacy MC - on 26.x GeckoLib is not wired, so the block has no BE.)
+        //? if <1.22 {
         SignalReceiverBlock.ENTITY_FACTORY = SignalReceiverBlockEntity::new;
+        //?}
     }
 }
