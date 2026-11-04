@@ -61,13 +61,9 @@ public final class LumenTechRegistry {
 
     // --- Creative tab ---
     public static final RegistrySupplier<CreativeModeTab> TAB = TABS.register("lumentech", () -> {
-        // The positional builder is all 1.20.1 - 1.21.1 have; the no-arg builder()
-        // only arrives in 1.21.2, so keep the row/column pair below that.
-        //? if <1.21.2 {
-        /*CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0);
-        *///?} else {
-        CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder();
-        //?}
+        // The positional builder (Row, int) is valid on every target line (1.20.1 through
+        // 26.x); the no-arg builder() is absent again on 26.x fabric, so we always use it.
+        CreativeModeTab.Builder tabBuilder = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0);
         return tabBuilder
                 .title(Component.translatable("itemGroup.lumentech"))
                 .icon(() -> new ItemStack(LUMEN_INGOT.get()))

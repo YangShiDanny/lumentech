@@ -7,6 +7,10 @@ import com.lumentech.block.SignalReceiverBlock;
 import com.lumentech.registry.LumenTechRegistry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+// Fabric removed BlockEntityType.Builder in 1.21.2; the 26.x lines use the Fabric API builder instead.
+//? if >=1.22 {
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
+//?}
 
 /**
  * Fabric block entity type for the Signal Receiver.
@@ -21,9 +25,18 @@ public final class FabricSignalReceiver {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
             DeferredRegister.create(LumenTech.MOD_ID, Registries.BLOCK_ENTITY_TYPE);
 
-    public static final RegistrySupplier<BlockEntityType<?>> SIGNAL_RECEIVER = BLOCK_ENTITY_TYPES.register("signal_receiver",
-            () -> BlockEntityType.Builder.of(SignalReceiverBlockEntity::new, LumenTechRegistry.SIGNAL_RECEIVER.get())
-                    .build(null));
+    public static final RegistrySupplier<BlockEntityType<?>> SIGNAL_RECEIVER;
+    static {
+        //? if <1.22 {
+        SIGNAL_RECEIVER = BLOCK_ENTITY_TYPES.register("signal_receiver",
+                () -> BlockEntityType.Builder.of(SignalReceiverBlockEntity::new, LumenTechRegistry.SIGNAL_RECEIVER.get())
+                        .build(null));
+        //?} else {
+        SIGNAL_RECEIVER = BLOCK_ENTITY_TYPES.register("signal_receiver",
+                () -> FabricBlockEntityTypeBuilder.create(SignalReceiverBlockEntity::new, LumenTechRegistry.SIGNAL_RECEIVER.get())
+                        .build());
+        //?}
+    }
 
     private FabricSignalReceiver() {
     }

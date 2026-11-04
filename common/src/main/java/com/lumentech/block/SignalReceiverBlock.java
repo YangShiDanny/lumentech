@@ -38,7 +38,12 @@ public class SignalReceiverBlock extends Block implements EntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState state) {
+        // On 26.x there is no GeckoLib model to draw, so render the plain vanilla block model.
+        //? if <1.22 {
         return RenderShape.ENTITYBLOCK_ANIMATED;
+        //?} else {
+        return RenderShape.MODEL;
+        //?}
     }
 
     @Override
